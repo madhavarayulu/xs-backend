@@ -2,17 +2,41 @@ import express from 'express';
 import nodemailer from 'nodemailer';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import multer from 'multer';
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
 
+// Multer configuration for handling file uploads
+const upload = multer({
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ];
+
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(
+        new Error('Invalid file type. Only PDF and Word documents are allowed.')
+      );
+    }
+  },
+});
+
 // CORS Configuration
 const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
     const allowedOrigins = [
+      process.env.FRONTEND_URL,
       'http://localhost:5173', // Your local frontend
       'https://your-production-frontend.com', // Production frontend
       undefined, // for postman or server-to-server requests
@@ -43,6 +67,129 @@ const transporter = nodemailer.createTransport({
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
+});
+
+// Validate job application input
+const validateJobApplication = (data) => {
+  const errors = {};
+
+  if (!data.firstName?.trim()) {
+    errors.firstName = 'First name is required';
+  }
+
+  if (!data.lastName?.trim()) {
+    errors.lastName = 'Last name is required';
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!data.email || !emailRegex.test(data.email)) {
+    errors.email = 'Valid email is required';
+  }
+
+  const phoneRegex = /^\+?[\d\s-()]{10,}$/;
+  if (!data.phone || !phoneRegex.test(data.phone)) {
+    errors.phone = 'Valid phone number is required';
+  }
+
+  return {
+    isValid: Object.keys(errors).length === 0,
+    errors,
+  };
+};
+
+// Handle job application submission
+app.post('/api/job-application', upload.single('resume'), async (req, res) => {
+  try {
+    const { firstName, lastName, email, phone, jobTitle, jobLocation } =
+      req.body;
+
+    // Validate input
+    const { isValid, errors } = validateJobApplication(req.body);
+    if (!isValid) {
+      return res.status(400).json({ errors });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({
+        errors: { file: 'Resume is required' },
+      });
+    }
+
+    // Email to client/HR
+    const mailOptions = {
+      from: `"Job Application" <${process.env.EMAIL_USER}>`,
+      to: process.env.CLIENT_EMAIL,
+      cc: process.env.HR_EMAIL, // Add HR email in .env
+      subject: `Xemsoft | New Job Application | ${jobTitle}, ${jobLocation} - ${firstName} ${lastName}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2>New Job Application</h2>
+<table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 10px; border: 1px solid #ddd;"><strong>Name:</strong></td>
+              <td style="padding: 10px; border: 1px solid #ddd;">${firstName} ${lastName}</td>
+            </tr>
+            <tr>
+              <td style="padding: 10px; border: 1px solid #ddd;"><strong>Email:</strong></td>
+              <td style="padding: 10px; border: 1px solid #ddd;">${email}</td>
+            </tr>
+            <tr>
+              <td style="padding: 10px; border: 1px solid #ddd;"><strong>Phone:</strong></td>
+              <td style="padding: 10px; border: 1px solid #ddd;">${phone}</td>
+            </tr>
+            <tr>
+              <td style="padding: 10px; border: 1px solid #ddd;"><strong>Job Title:</strong></td>
+              <td style="padding: 10px; border: 1px solid #ddd;">${jobTitle}</td>
+            </tr>
+            <tr>
+              <td style="padding: 10px; border: 1px solid #ddd;"><strong>Job Location:</strong></td>
+              <td style="padding: 10px; border: 1px solid #ddd;">${jobLocation}</td>
+            </tr>
+          </table>
+        </div>
+      `,
+      attachments: [
+        {
+          filename: req.file.originalname,
+          content: req.file.buffer,
+          contentType: req.file.mimetype,
+        },
+      ],
+    };
+
+    // Acknowledgment email to applicant
+    const applicantMailOptions = {
+      from: `"Xemsoft" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: "We've Received Your Job Application",
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2>Thank You for Your Application!</h2>
+          <p>Hi ${firstName},</p>
+          <p>We've received your job application for the position of <strong>${jobTitle}</strong> in <strong>${jobLocation}</strong> and will review it shortly.</p>
+          <p>Our hiring team will contact you if your qualifications match our requirements.</p>
+          <br>
+          <p>Best regards,<br>Xemsoft</p>
+        </div>
+      `,
+    };
+
+    // Send both emails
+    await Promise.all([
+      transporter.sendMail(mailOptions),
+      transporter.sendMail(applicantMailOptions),
+    ]);
+
+    res.status(200).json({
+      message: "Application submitted successfully. We'll be in touch soon!",
+    });
+  } catch (error) {
+    console.error('Job application submission error:', error);
+    res.status(500).json({
+      message: 'Failed to submit application. Please try again later.',
+      error: error.message,
+    });
+  }
 });
 
 // Validate form input
