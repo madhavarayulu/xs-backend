@@ -54,7 +54,6 @@ const corsOptions = {
 };
 
 // Middleware
-
 app.use(cors(corsOptions));
 app.use(express.json());
 
@@ -120,11 +119,11 @@ app.post('/api/job-application', upload.single('resume'), async (req, res) => {
       from: `"Job Application" <${process.env.EMAIL_USER}>`,
       to: process.env.CLIENT_EMAIL,
       cc: process.env.HR_EMAIL, // Add HR email in .env
-      subject: `Xemsoft | New Job Application | ${jobTitle}, ${jobLocation} - ${firstName} ${lastName}`,
+      subject: `Xemsoft | New Job Application | ${jobTitle} | ${jobLocation} - ${firstName} ${lastName}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2>New Job Application</h2>
-<table style="width: 100%; border-collapse: collapse;">
+          <table style="width: 100%; border-collapse: collapse;">
             <tr>
               <td style="padding: 10px; border: 1px solid #ddd;"><strong>Name:</strong></td>
               <td style="padding: 10px; border: 1px solid #ddd;">${firstName} ${lastName}</td>
@@ -250,6 +249,7 @@ app.post('/api/contact', async (req, res) => {
     const clientMailOptions = {
       from: `"Contact Form" <${process.env.EMAIL_USER}>`,
       to: process.env.CLIENT_EMAIL, // Your client's email
+      cc: process.env.HR_EMAIL,
       subject: `Xemsoft | New Contact Form Submission: ${subject}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
