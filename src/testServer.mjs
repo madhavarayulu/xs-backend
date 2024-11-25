@@ -15,7 +15,8 @@ const transporter = nodemailer.createTransport({
 
 const mailOptions = {
   from: `"Test Email" <${process.env.EMAIL_USER}>`,
-  to: process.env.HR_EMAIL,
+  to: process.env.CLIENT_EMAIL,
+  cc: process.env.HR_EMAIL,
   subject: 'Test Email',
   text: 'This is a test email.',
 };
