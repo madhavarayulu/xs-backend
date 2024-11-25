@@ -38,7 +38,7 @@ const corsOptions = {
     const allowedOrigins = [
       process.env.FRONTEND_URL,
       'http://localhost:5173', // Your local frontend
-      'https://your-production-frontend.com', // Production frontend
+      'https://xs-gamma.vercel.app/', // Production frontend
       undefined, // for postman or server-to-server requests
     ];
 
